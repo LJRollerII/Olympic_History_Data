@@ -473,8 +473,7 @@ WHERE rnk = 1;
 -- Answer: Hockey (173 medals)
 
 --===================================================================================================================================================================--
-
--- 20. Break down all olympic games where india won medal for Hockey and how many medals in each olympic games.
+-- 20. Break down all olympic games where India won medal for Hockey and how many medals in each olympic games.
 
 SELECT team, sport, games, COUNT(1) AS total_medals
 FROM athlete_events
@@ -484,3 +483,91 @@ GROUP BY team, sport, games
 ORDER BY total_medals DESC;
 
 -- Answer: All Olympic Games where India won a medal for hockey is mentioned in above query
+
+--===================================================================================================================================================================--
+-- 21. In which Sport/event has the United States (USA) won the most medals?
+
+WITH t1 AS
+        (SELECT sport, COUNT(1) AS total_medals
+         FROM athlete_events
+         WHERE medal <> 'NA'
+         AND team = 'United States'
+         GROUP BY sport
+         ORDER BY total_medals DESC),
+     t2 AS
+        (SELECT *, RANK() OVER(ORDER BY total_medals DESC) AS rnk
+         FROM t1)
+SELECT sport, total_medals
+FROM t2
+WHERE rnk = 1;
+
+-- Answer: Athletics (1071 medals)
+
+--===================================================================================================================================================================--
+-- 22. Break down all olympic games where USA won medals for Athletics and how many medals in each olympic games.
+
+SELECT team, sport, games, COUNT(1) AS total_medals
+FROM athlete_events
+WHERE medal <> 'NA'
+AND team = 'United States' AND sport = 'Athletics'
+GROUP BY team, sport, games
+ORDER BY total_medals DESC;
+
+-- Answer: All Olympic Games where USA won a medal for athletics is mentioned in above query
+
+
+--===================================================================================================================================================================--
+-- 23. Fetch details of the youngest athletes to win a gold medal.
+
+WITH temp AS
+           (SELECT name,sex,CAST(CASE WHEN age = 'NA' THEN '0' ELSE age END AS int) as age,
+            team,games,city,sport, event, medal
+            FROM athlete_events),
+        ranking AS
+            (SELECT *, RANK() OVER (ORDER BY age DESC) AS rnk
+            FROM temp
+            WHERE medal='Gold')
+SELECT *
+FROM ranking
+WHERE rnk = 13218;
+
+-- Answer: Klaus Zerta, Fu Mingxia, Hans Bourquin, Kim Yun-Mi, Marjorie Gestring, Donna Elizabeth de Varona  and Aieen Muriel Riggn are the youngest athletes to win a gold medal at 13 yrs old.
+
+--===================================================================================================================================================================--
+-- 24. How many athletes won only one gold medal?
+
+
+WITH t1 AS
+	(SELECT name, COUNT(1) AS total_medals
+	FROM athlete_events
+	WHERE medal = 'Gold'
+	GROUP BY name
+	ORDER BY total_medals DESC),
+t2 AS
+	(SELECT *, DENSE_RANK() OVER(ORDER BY total_medals DESC) AS rnk
+	FROM t1)
+SELECT COUNT (DISTINCT name)
+FROM t2
+WHERE total_medals = 1
+
+
+-- For this question you can also use WHERE rnk = 11 at the end of the query
+-- Answer: 8418
+
+--===================================================================================================================================================================--
+-- 25. How many athletes have won only one medal?
+
+WITH t1 AS
+          (SELECT name, team, COUNT(1) AS total_medals
+           FROM athlete_events
+           WHERE medal IN ('Gold', 'Silver', 'Bronze')
+           GROUP BY name, team
+           ORDER BY total_medals DESC),
+     t2 AS
+          (SELECT *, DENSE_RANK() OVER (ORDER BY total_medals DESC) AS rnk
+           FROM t1)
+SELECT COUNT (DISTINCT name)
+FROM t2
+WHERE total_medals = 1;
+
+-- Answer: 21770
