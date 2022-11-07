@@ -155,6 +155,23 @@ ORDER BY t1.sport;
 
 --===================================================================================================================================================================--
 -- 8. Fetch the total no of sports played in each olympic games.
+
+WITH t1 AS
+        (SELECT DISTINCT games, sport
+      	FROM athlete_events),
+        t2 AS
+      	(SELECT games, COUNT(1) AS no_of_sports
+      	FROM t1
+      	GROUP BY games)
+SELECT * 
+FROM t2
+ORDER BY no_of_sports DESC;
+
+
+-- Answer: Number of sports played in each olympics mentioned in above query
+
+--===================================================================================================================================================================--
+
 -- 9. Fetch details of the oldest athletes to win a gold medal.
 -- 10. Find the Ratio of male and female athletes participated in all olympic games.
 --===================================================================================================================================================================--
@@ -190,7 +207,45 @@ WHERE rnk <= 5
 
 --===================================================================================================================================================================--
 -- 12. Fetch the top 5 athletes who have won the most medals (gold/silver/bronze).
+
+WITH t1 AS
+          (SELECT name, team, COUNT(1) AS total_medals
+           FROM athlete_events
+           WHERE medal IN ('Gold', 'Silver', 'Bronze')
+           GROUP BY name, team
+           ORDER BY total_medals DESC),
+     t2 AS
+          (SELECT *, DENSE_RANK() OVER (ORDER BY total_medals DESC) AS rnk
+           FROM t1)
+SELECT name, team, total_medals
+FROM t2
+WHERE rnk <= 5;
+
+
+-- Multiple ties for the 3rd, 4th, and 5th most medals.
+-- Answer: Based on medal count 14 athletes qualify top 5 athletes who have won the most medals.
+
+--===================================================================================================================================================================--
+
 -- 13. Fetch the top 5 most successful countries in olympics. Success is defined by no of medals won.
+
+WITH t1 AS
+         (SELECT nr.region, COUNT(1) AS total_medals
+          FROM athlete_events AS ae
+          JOIN noc_regions AS nr 
+		  ON nr.noc = ae.noc
+          WHERE medal <> 'NA'
+          GROUP BY nr.region
+          ORDER BY total_medals DESC),
+     t2 AS
+         (SELECT *, DENSE_RANK() OVER (ORDER BY total_medals DESC) AS rnk
+          FROM t1)
+SELECT *
+FROM t2
+WHERE rnk <= 5;
+
+
+-- Answer: USA, Russia, Germany, United Kingdom (UK), and France are the top 5 countries with the most medals won.
 
 --===================================================================================================================================================================--
 -- 14. List down total gold, silver and broze medals won by each country.
@@ -226,10 +281,36 @@ FROM crosstab('SELECT nr.region AS country, ae.medal, COUNT(1) AS total_medals
 					  gold bigint,
 					  silver bigint)
 ORDER BY gold DESC, silver DESC, bronze DESC
+
 --- The reason we ordered the results bronze, gold, silver is because when you run ther crosstab query string that is the order of medals the query gives you.				  
 --- Answer: List completed
+
 --===================================================================================================================================================================--
 -- 15. List down total gold, silver and broze medals won by each country corresponding to each olympic games.
+
+--CREATE EXTENSION TABLEFUNC;
+
+SELECT SUBSTRING(games,1,POSITION(' - ' IN games) - 1) AS games,
+SUBSTRING(games,POSITION(' - ' IN games) + 3) AS country,
+COALESCE(gold, 0) AS gold,
+COALESCE(silver, 0) AS silver,
+COALESCE(bronze, 0) AS bronze
+FROM CROSSTAB('SELECT concat(games, '' - '', nr.region) as games,
+               medal,
+               COUNT(1) as total_medals
+               FROM olympics_history AS ae
+               JOIN noc_regions AS nr 
+			   ON nr.noc = ae.noc
+               WHERE medal <> ''NA''
+               GROUP BY games,nr.region,medal
+               Order BY games,medal',
+            'values (''Bronze''), (''Gold''), (''Silver'')')
+    AS FINAL_RESULT(games text, bronze bigint, gold bigint, silver bigint);
+
+
+
+--- Answer: List completed
+
 --===================================================================================================================================================================--
 -- 16. Identify which country won the most gold, most silver and most bronze medals in each olympic games.
 
