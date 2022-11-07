@@ -173,7 +173,44 @@ ORDER BY no_of_sports DESC;
 --===================================================================================================================================================================--
 
 -- 9. Fetch details of the oldest athletes to win a gold medal.
+
+WITH temp AS
+           (SELECT name,sex,CAST(CASE WHEN age = 'NA' THEN '0' ELSE age END AS int) as age,
+            team,games,city,sport, event, medal
+            FROM athlete_events),
+        ranking AS
+            (SELECT *, RANK() OVER (ORDER BY age DESC) AS rnk
+            FROM temp
+            WHERE medal='Gold')
+SELECT *
+FROM ranking
+WHERE rnk = 1;
+
+
+
+-- Answer: Charles Jacobus and Oscar Gomer Swahn are the oldest athletes to win a gold medal at 64 yrs old.
+
+--===================================================================================================================================================================--
+
 -- 10. Find the Ratio of male and female athletes participated in all olympic games.
+
+WITH t1 AS
+        (SELECT sex, COUNT(1) AS cnt
+         FROM athlete_events
+         GROUP BY sex),
+     t2 AS
+        (SELECT *, ROW_NUMBER() OVER(ORDER BY cnt) AS rn
+         FROM t1),
+        min_cnt AS
+        	(SELECT cnt from t2	WHERE rn = 1),
+        max_cnt AS
+        	(SELECT cnt FROM t2	WHERE rn = 2)
+SELECT concat('1 : ', round(max_cnt.cnt::decimal/min_cnt.cnt, 2)) AS ratio
+FROM min_cnt, max_cnt;
+
+
+-- Answer: 1:2.64 ratio
+
 --===================================================================================================================================================================--
 -- 11. Fetch the top 5 athletes who have won the most gold medals.
 
@@ -349,6 +386,101 @@ ORDER BY games
 -- Answer: Countries indentified using query above
 --===================================================================================================================================================================--
 -- 17. Identify which country won the most gold, most silver, most bronze medals and the most medals in each olympic games.
+
+--CREATE EXTENSION TABLEFUNC; 
+ 
+WITH temp AS
+    	(SELECT SUBSTRING(games, 1, POSITION(' - ' IN games) - 1) AS games,
+    		SUBSTRING(games, POSITION(' - ' IN games) + 3) AS country,
+    		COALESCE(gold, 0) AS gold,
+    		COALESCE(silver, 0) AS silver,
+    		COALESCE(bronze, 0) AS bronze
+    	FROM CROSSTAB('SELECT concat(games, '' - '', nr.region) as games
+    					, medal
+    					, count(1) as total_medals
+    				  FROM athlete_events AS ae
+    				  JOIN noc_regions AS nr 
+					  ON nr.noc = ae.noc
+    				  WHERE medal <> ''NA''
+    				  GROUP BY games,nr.region,medal
+    				  ORDER BY games,medal',
+                  'values (''Bronze''), (''Gold''), (''Silver'')')
+    			   AS FINAL_RESULT(games text, bronze bigint, gold bigint, silver bigint)),
+    	tot_medals AS
+    		(SELECT games, nr.region AS country, COUNT(1) AS total_medals
+    		FROM athlete_events AS ae
+    		JOIN noc_regions AS nr 
+			ON nr.noc = ae.noc
+    		WHERE medal <> 'NA'
+    		GROUP BY games,nr.region ORDER BY 1, 2)
+    SELECT DISTINCT t.games,
+    	CONCAT(FIRST_VALUE(t.country) OVER(PARTITION BY t.games ORDER BY gold DESC),
+    		' - ', FIRST_VALUE(t.gold) OVER(PARTITION BY t.games ORDER BY gold DESC)) AS Max_Gold,
+    	CONCAT(FIRST_VALUE(t.country) OVER(PARTITION BY t.games ORDER BY silver DESC),
+    		 ' - ', FIRST_VALUE(t.silver) OVER(PARTITION BY t.games ORDER BY silver DESC)) AS Max_Silver,
+    	CONCAT(FIRST_VALUE(t.country) OVER(PARTITION BY t.games ORDER BY bronze DESC),
+    	     ' - ', FIRST_VALUE(t.bronze) OVER(PARTITION BY t.games ORDER BY bronze DESC)) AS Max_Bronze,
+    	CONCAT(FIRST_VALUE(tm.country) OVER(PARTITION BY tm.games ORDER BY total_medals DESC NULLS LAST),
+    		 ' - ', FIRST_VALUE(tm.total_medals) OVER(PARTITION BY tm.games order by total_medals DESC NULLS LAST)) AS Max_Medals
+FROM temp t
+JOIN tot_medals tm 
+ON tm.games = t.games AND tm.country = t.country
+ORDER BY games;
+
+
+
+-- Answer: Countries indentified using query above
+
+--===================================================================================================================================================================--
 -- 18. Which countries have never won gold medal but have won silver/bronze medals?
+
+--CREATE EXTENSION TABLEFUNC;
+
+SELECT * FROM (
+    	SELECT country, COALESCE(gold,0) AS gold, COALESCE(silver,0) AS silver, COALESCE(bronze,0) AS bronze
+    		FROM CROSSTAB('SELECT nr.region as country
+    					, medal, count(1) as total_medals
+    					FROM athlete_events AS ae
+    					JOIN noc_regions AS nr
+						ON nr.noc = ae.noc
+    					WHERE medal <> ''NA''
+    					GROUP BY nr.region,medal order BY nr.region,medal',
+                    'values (''Bronze''), (''Gold''), (''Silver'')')
+    		AS FINAL_RESULT(country varchar,
+    		bronze bigint, gold bigint, silver bigint)) x
+    WHERE gold = 0 AND (silver > 0 or bronze > 0)
+    ORDER BY gold DESC NULLS LAST, silver DESC NULLS LAST, bronze DESC NULLS LAST;
+
+-- Answer: Countries that have never won gold medals, but have won silver & bronze medals are mentioned in above query.
+
+--===================================================================================================================================================================--
 -- 19. In which Sport/event, India has won highest medals.
+
+WITH t1 AS
+        (SELECT sport, COUNT(1) AS total_medals
+         FROM athlete_events
+         WHERE medal <> 'NA'
+         AND team = 'India'
+         GROUP BY sport
+         ORDER BY total_medals DESC),
+     t2 AS
+        (SELECT *, RANK() OVER(ORDER BY total_medals DESC) AS rnk
+         FROM t1)
+SELECT sport, total_medals
+FROM t2
+WHERE rnk = 1;
+
+-- Answer: Hockey (173 medals)
+
+--===================================================================================================================================================================--
+
 -- 20. Break down all olympic games where india won medal for Hockey and how many medals in each olympic games.
+
+SELECT team, sport, games, COUNT(1) AS total_medals
+FROM athlete_events
+WHERE medal <> 'NA'
+AND team = 'India' AND sport = 'Hockey'
+GROUP BY team, sport, games
+ORDER BY total_medals DESC;
+
+-- Answer: All Olympic Games where India won a medal for hockey is mentioned in above query
