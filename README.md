@@ -51,6 +51,8 @@ Back to [Contents](#Header)
 
 # Visualizations
 
+[Olympic History Data & Statistics](https://public.tableau.com/app/profile/lance.roller/viz/OlympicHistoryDataStatistics/OlympicHistoryDataStatistics?publish=yes)
+
 Back to [Contents](#Header)
 
 # Data Sources & Tools
